@@ -16,12 +16,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package main
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-	"io/ioutil"
+	"io"
 	"log"
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type CPUsMetrics struct {
@@ -57,7 +58,7 @@ func CPUsData() []byte {
 	if err := cmd.Start(); err != nil {
 		log.Fatal(err)
 	}
-	out, _ := ioutil.ReadAll(stdout)
+	out, _ := io.ReadAll(stdout)
 	if err := cmd.Wait(); err != nil {
 		log.Fatal(err)
 	}

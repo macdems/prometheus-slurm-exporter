@@ -16,80 +16,81 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package main
 
 import (
-    "io/ioutil"
-    "os/exec"
-    "log"
-    "strings"
-    "strconv"
-    "github.com/prometheus/client_golang/prometheus"
+	"io"
+	"log"
+	"os/exec"
+	"strconv"
+	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func FairShareData() []byte {
-    cmd := exec.Command("sshare", "-n", "-P", "-o", "user,account,fairshare", "-U", "-a", "-A", "qchem,photonics")
-    stdout, err := cmd.StdoutPipe()
-    if err != nil {
-        log.Fatal(err)
-    }
-    if err := cmd.Start(); err != nil {
-        log.Fatal(err)
-    }
-    out, _ := ioutil.ReadAll(stdout)
-    if err := cmd.Wait(); err != nil {
-        log.Fatal(err)
-    }
-    return out
+	cmd := exec.Command("sshare", "-n", "-P", "-o", "user,account,fairshare", "-U", "-a", "-A", "qchem,photonics")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	out, _ := io.ReadAll(stdout)
+	if err := cmd.Wait(); err != nil {
+		log.Fatal(err)
+	}
+	return out
 }
 
 type FairShareMetrics struct {
-    fairshare float64
+	fairshare float64
 }
 
 type UserAccount struct {
-    user string
-    account string
+	user    string
+	account string
 }
 
 func ParseFairShareMetrics() map[UserAccount]*FairShareMetrics {
-    metrics := make(map[UserAccount]*FairShareMetrics)
-    lines := strings.Split(string(FairShareData()), "\n")
-    for _, line := range lines {
-        if ! strings.HasPrefix(line,"  ") {
-            if strings.Contains(line,"|") {
-                items := strings.Split(line,"|")
-                user := strings.Trim(items[0]," ")
-                account := strings.Trim(items[1]," ")
-                user_account := UserAccount{user, account}
-                _, key := metrics[user_account]
-                fairshare, _ := strconv.ParseFloat(items[2],64)
-                if !key {
-                    metrics[user_account] = &FairShareMetrics{fairshare}
-                } else {
-                    metrics[user_account].fairshare = fairshare
-                }
-            }
-        }
-    }
-    return metrics
+	metrics := make(map[UserAccount]*FairShareMetrics)
+	lines := strings.Split(string(FairShareData()), "\n")
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "  ") {
+			if strings.Contains(line, "|") {
+				items := strings.Split(line, "|")
+				user := strings.Trim(items[0], " ")
+				account := strings.Trim(items[1], " ")
+				user_account := UserAccount{user, account}
+				_, key := metrics[user_account]
+				fairshare, _ := strconv.ParseFloat(items[2], 64)
+				if !key {
+					metrics[user_account] = &FairShareMetrics{fairshare}
+				} else {
+					metrics[user_account].fairshare = fairshare
+				}
+			}
+		}
+	}
+	return metrics
 }
 
 type FairShareCollector struct {
-    fairshare *prometheus.Desc
+	fairshare *prometheus.Desc
 }
 
 func NewFairShareCollector() *FairShareCollector {
-    labels := []string{"user", "account"}
-    return &FairShareCollector{
-        fairshare: prometheus.NewDesc("slurm_user_fairshare", "FairShare for user", labels, nil),
-    }
+	labels := []string{"user", "account"}
+	return &FairShareCollector{
+		fairshare: prometheus.NewDesc("slurm_user_fairshare", "FairShare for user", labels, nil),
+	}
 }
 
 func (fsc *FairShareCollector) Describe(ch chan<- *prometheus.Desc) {
-    ch <- fsc.fairshare
+	ch <- fsc.fairshare
 }
 
 func (fsc *FairShareCollector) Collect(ch chan<- prometheus.Metric) {
-    fsm := ParseFairShareMetrics()
-    for f := range fsm {
-        ch <- prometheus.MustNewConstMetric(fsc.fairshare, prometheus.GaugeValue, fsm[f].fairshare, f.user, f.account)
-    }
+	fsm := ParseFairShareMetrics()
+	for f := range fsm {
+		ch <- prometheus.MustNewConstMetric(fsc.fairshare, prometheus.GaugeValue, fsm[f].fairshare, f.user, f.account)
+	}
 }

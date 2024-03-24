@@ -16,7 +16,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package main
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 )
@@ -27,7 +27,7 @@ func TestCPUsMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can not open test data: %v", err)
 	}
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	t.Logf("%+v", ParseCPUsMetrics(data))
 }
 
