@@ -26,7 +26,7 @@ import (
 )
 
 func FairShareData() []byte {
-	cmd := exec.Command("sshare", "-n", "-P", "-o", "user,account,fairshare", "-U", "-a", "-A", "qchem,photonics")
+	cmd := exec.Command("sshare", "-n", "-P", "-o", "user,account,fairshare,levelfs", "-U", "-a", "-A", "qchem,photonics")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatal(err)
@@ -43,6 +43,7 @@ func FairShareData() []byte {
 
 type FairShareMetrics struct {
 	fairshare float64
+	levelfs   float64
 }
 
 type UserAccount struct {
@@ -62,10 +63,12 @@ func ParseFairShareMetrics() map[UserAccount]*FairShareMetrics {
 				user_account := UserAccount{user, account}
 				_, key := metrics[user_account]
 				fairshare, _ := strconv.ParseFloat(items[2], 64)
+				levelfs, _ := strconv.ParseFloat(items[3], 64)
 				if !key {
-					metrics[user_account] = &FairShareMetrics{fairshare}
+					metrics[user_account] = &FairShareMetrics{fairshare, levelfs}
 				} else {
 					metrics[user_account].fairshare = fairshare
+					metrics[user_account].levelfs = levelfs
 				}
 			}
 		}
@@ -75,22 +78,26 @@ func ParseFairShareMetrics() map[UserAccount]*FairShareMetrics {
 
 type FairShareCollector struct {
 	fairshare *prometheus.Desc
+	levelfs   *prometheus.Desc
 }
 
 func NewFairShareCollector() *FairShareCollector {
 	labels := []string{"user", "account"}
 	return &FairShareCollector{
 		fairshare: prometheus.NewDesc("slurm_user_fairshare", "FairShare for user", labels, nil),
+		levelfs:   prometheus.NewDesc("slurm_user_level_fairshare", "Level FairShare for user", labels, nil),
 	}
 }
 
 func (fsc *FairShareCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- fsc.fairshare
+	ch <- fsc.levelfs
 }
 
 func (fsc *FairShareCollector) Collect(ch chan<- prometheus.Metric) {
 	fsm := ParseFairShareMetrics()
 	for f := range fsm {
 		ch <- prometheus.MustNewConstMetric(fsc.fairshare, prometheus.GaugeValue, fsm[f].fairshare, f.user, f.account)
+		ch <- prometheus.MustNewConstMetric(fsc.levelfs, prometheus.GaugeValue, fsm[f].levelfs, f.user, f.account)
 	}
 }
